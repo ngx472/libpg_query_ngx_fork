@@ -13,7 +13,7 @@ MACHINE = X86
 MACHINE = X64
 !ENDIF
 
-SRC_FILES = src/*.c src/postgres/*.c vendor/protobuf-c/protobuf-c.c vendor/xxhash/xxhash.c protobuf/pg_query.pb-c.c
+SRC_FILES = src/*.c src/postgres/*.c vendor/protobuf-c/protobuf-c.c vendor/xxhash/xxhash.c protobuf/pg_query.pb-c.c pg_query_win32_dllmain.c
 SRC_OBJ = src/*.obj src/postgres/*.obj vendor/protobuf-c/*.obj vendor/xxhash/*.obj protobuf/*.obj
 
 CFLAGS = -I. -I./vendor -I./src/postgres/include -I./src/include -I./src/postgres/include/port/win32 -I./src/postgres/include/port/win32_msvc
