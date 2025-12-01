@@ -27,10 +27,12 @@ build: $(ARLIB)
 build_shared:
 	@echo Compiling library source files for DLL...
 	$(CC) $(CFLAGS) /c $(SRC_FILES)
-	@echo Creating library from all object files...
-	lib /OUT:pg_query.lib *.obj
+	@echo Creating library from library object files only...
+	lib /OUT:pg_query_dll.lib pg_query.obj pg_query_deparse.obj pg_query_fingerprint.obj pg_query_json_plpgsql.obj pg_query_normalize.obj pg_query_outfuncs_json.obj pg_query_outfuncs_protobuf.obj pg_query_parse.obj pg_query_parse_plpgsql.obj pg_query_raw_tree_walker_supports.obj pg_query_readfuncs_protobuf.obj pg_query_scan.obj pg_query_split.obj pg_query_summary.obj pg_query_summary_statement_type.obj pg_query_summary_truncate.obj postgres_deparse.obj src_*.obj
 	@echo Linking DLL...
-	link /DLL /OUT:$(SOLIB) pg_query.lib kernel32.lib /SUBSYSTEM:WINDOWS /MACHINE:$(MACHINE)
+	link /DLL /OUT:$(SOLIB) pg_query_dll.lib kernel32.lib /SUBSYSTEM:WINDOWS /MACHINE:$(MACHINE)
+	@echo Cleaning up...
+	$(RM) pg_query_dll.lib
 	@echo DLL build complete: $(SOLIB)
 
 clean:
@@ -41,6 +43,7 @@ clean:
 	$(RM) vendor\xxhash\*.obj
 	$(RM) protobuf\*.obj
 	$(RM) pg_query.lib
+	$(RM) pg_query_dll.lib
 	$(RM) pg_query.dll
 	$(RM) pg_query.exp
 
