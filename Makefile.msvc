@@ -16,16 +16,10 @@ all: examples test build
 build: $(ARLIB)
 
 build_shared:
-	@echo Cleaning object files...
-	$(RM) src\*.obj
-	$(RM) src\postgres\*.obj
-	$(RM) vendor\protobuf-c\*.obj
-	$(RM) vendor\xxhash\*.obj
-	$(RM) protobuf\*.obj
 	@echo Compiling source files for DLL...
 	$(CC) $(CFLAGS) /c $(SRC_FILES)
 	@echo Linking DLL...
-	link /DLL /OUT:$(SOLIB) src\*.obj src\postgres\*.obj vendor\protobuf-c\*.obj vendor\xxhash\*.obj protobuf\*.obj kernel32.lib
+	link /DLL /OUT:$(SOLIB) /SUBSYSTEM:WINDOWS /ENTRY:_DllMainCRTStartup@12 src/*.obj src/postgres/*.obj vendor/protobuf-c/protobuf-c.obj vendor/xxhash/xxhash.obj protobuf/pg_query.pb-c.obj kernel32.lib
 	@echo DLL build complete: $(SOLIB)
 
 clean:
