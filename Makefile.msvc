@@ -13,9 +13,17 @@ all: examples test build
 
 build: $(ARLIB)
 
+build_shared: pg_query.dll
+
+pg_query.dll: $(SRC_FILES)
+	$(CC) $(CFLAGS) /c $(SRC_FILES)
+	link /DLL /OUT:pg_query.dll *.obj kernel32.lib
+
 clean:
 	$(RM) *.obj
 	$(RM) pg_query.lib
+	$(RM) pg_query.dll
+	$(RM) pg_query.exp
 
 .PHONY: all clean build build_shared extract_source examples test install
 
