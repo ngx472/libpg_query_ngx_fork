@@ -12,6 +12,8 @@ jobs:
       uses: actions/checkout@v4
     - name: Build and run tests
       run: make CC=gcc CXX=g++
+    - name: Build shared library
+      run: make build_shared
     - name: Upload Linux artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -135,6 +137,8 @@ jobs:
       uses: actions/checkout@v4
     - name: Build and run tests
       run: nmake /F Makefile.msvc
+    - name: Build shared library
+      run: nmake /F Makefile.msvc build_shared
     - name: Upload Windows MSVC artifacts
       uses: actions/upload-artifact@v4
       with:
