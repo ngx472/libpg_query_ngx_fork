@@ -28,7 +28,7 @@ build_shared:
 	@echo Compiling library source files for DLL...
 	$(CC) $(CFLAGS) /c $(SRC_FILES)
 	@echo Linking DLL...
-	link /DLL /OUT:$(SOLIB) $(SRC_OBJ) kernel32.lib /SUBSYSTEM:CONSOLE /MACHINE:$(MACHINE)
+	link /DLL /OUT:$(SOLIB) src\*.obj src\postgres\*.obj vendor\protobuf-c\*.obj vendor\xxhash\*.obj protobuf\*.obj kernel32.lib /SUBSYSTEM:WINDOWS /MACHINE:$(MACHINE)
 	@echo DLL build complete: $(SOLIB)
 
 clean:
