@@ -27,8 +27,19 @@ build: $(ARLIB)
 build_shared:
 	@echo Compiling library source files for DLL...
 	$(CC) $(CFLAGS) /c $(SRC_FILES)
+	@echo Gathering object files...
+	@if not exist objs mkdir objs
+	@copy src\*.obj objs\ >nul
+	@copy src\postgres\*.obj objs\ >nul
+	@copy vendor\protobuf-c\*.obj objs\ >nul
+	@copy vendor\xxhash\*.obj objs\ >nul
+	@copy protobuf\*.obj objs\ >nul
+	@echo Creating library from gathered objects...
+	cd objs && ..\lib /OUT:..\pg_query_temp.lib *.obj && cd ..
 	@echo Linking DLL...
-	link /DLL /OUT:$(SOLIB) src\*.obj src\postgres\*.obj vendor\protobuf-c\*.obj vendor\xxhash\*.obj protobuf\*.obj kernel32.lib /SUBSYSTEM:WINDOWS /MACHINE:$(MACHINE)
+	link /DLL /OUT:$(SOLIB) pg_query_temp.lib kernel32.lib /SUBSYSTEM:WINDOWS /MACHINE:$(MACHINE)
+	@echo Cleaning up...
+	$(RM) pg_query_temp.lib
 	@echo DLL build complete: $(SOLIB)
 
 clean:
@@ -41,7 +52,8 @@ clean:
 	$(RM) pg_query.lib
 	$(RM) pg_query.dll
 	$(RM) pg_query.exp
-	$(RM) pg_query.lib
+	$(RM) pg_query_temp.lib
+	@if exist objs rmdir /s /q objs
 
 .PHONY: all clean build build_shared extract_source examples test install
 
