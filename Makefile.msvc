@@ -4,6 +4,15 @@ TARGET = pg_query
 ARLIB = $(TARGET).lib
 SOLIB = pg_query.dll
 
+# Detect machine type from environment
+!IF "$(VSCMD_ARG_TGT_ARCH)" == "x64"
+MACHINE = X64
+!ELSE IF "$(VSCMD_ARG_TGT_ARCH)" == "x86"
+MACHINE = X86
+!ELSE
+MACHINE = X64
+!ENDIF
+
 SRC_FILES = src/*.c src/postgres/*.c vendor/protobuf-c/protobuf-c.c vendor/xxhash/xxhash.c protobuf/pg_query.pb-c.c
 SRC_OBJ = src/*.obj src/postgres/*.obj vendor/protobuf-c/*.obj vendor/xxhash/*.obj protobuf/*.obj
 
@@ -16,12 +25,14 @@ all: examples test build
 build: $(ARLIB)
 
 build_shared:
-	@echo Compiling source files for DLL...
+	@echo Compiling library source files for DLL...
 	$(CC) $(CFLAGS) /c $(SRC_FILES)
-	@echo Creating static library from objects...
-	lib /OUT:pg_query.lib *.obj
-	@echo Linking DLL from static library...
-	link /DLL /OUT:$(SOLIB) pg_query.lib kernel32.lib /MACHINE:X86
+	@echo Creating import library from library objects...
+	lib /OUT:pg_query_shared.lib src\*.obj src\postgres\*.obj vendor\protobuf-c\protobuf-c.obj vendor\xxhash\xxhash.obj protobuf\pg_query.pb-c.obj
+	@echo Linking DLL...
+	link /DLL /OUT:$(SOLIB) pg_query_shared.lib kernel32.lib /SUBSYSTEM:CONSOLE /MACHINE:$(MACHINE)
+	@echo Cleaning up intermediate library...
+	$(RM) pg_query_shared.lib
 	@echo DLL build complete: $(SOLIB)
 
 clean:
