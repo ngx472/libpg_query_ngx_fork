@@ -122,31 +122,6 @@ jobs:
           *.a
           *.dylib
         if-no-files-found: ignore
-  build_windows_msvc:
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [x64, x86]
-    steps:
-    - name: Configure MSVC developer console
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: ${{ matrix.arch }}
-    - name: Check out code
-      uses: actions/checkout@v4
-    - name: Build and run tests
-      run: nmake /F Makefile.msvc
-    - name: Build shared library
-      run: nmake /F Makefile.msvc build_shared
-    - name: Upload Windows MSVC artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: libpg_query-windows-msvc-${{ matrix.arch }}
-        path: |
-          *.lib
-          *.dll
-        if-no-files-found: ignore
   # Windows MSYS2 builds (commented out - use MSVC builds for shipping)
   # build_windows_msys2:
   #   runs-on: windows-latest
@@ -178,3 +153,41 @@ jobs:
   #         *.a
   #         *.dll
   #       if-no-files-found: ignore
+  build_windows_cross:
+    name: Cross-compile Windows (mingw-w64)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        triplet: [x86_64-w64-mingw32, i686-w64-mingw32]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install mingw-w64 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mingw-w64
+      - name: Build static library (libpg_query.a)
+        env:
+          CC: ${{ matrix.triplet }}-gcc
+        run: |
+          make clean
+          make CC=$CC CFLAGS="-O3 -I./src/postgres/include/port/win32 -DWIN32"
+      - name: Build shared library (DLL)
+        env:
+          CC: ${{ matrix.triplet }}-gcc
+        run: |
+          # Collect object files produced by previous make
+          OBJS="$(find src -name '*.o') $(find src/postgres -name '*.o') vendor/protobuf-c/protobuf-c.o vendor/xxhash/xxhash.o protobuf/pg_query.pb-c.o"
+          # Create import library + DLL (name pg_query.dll for consistency)
+          $CC -shared -o pg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
+          ls -l pg_query.dll libpg_query.a || true
+      - name: Upload Windows (mingw) artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libpg_query-windows-mingw-${{ matrix.triplet }}
+          path: |
+            libpg_query.a
+            pg_query.dll
+            libpg_query.dll.a
+          if-no-files-found: error
