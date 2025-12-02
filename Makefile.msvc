@@ -140,26 +140,25 @@ TARGET = pg_query
 DLL = $(TARGET).dll
 IMPLIB = $(TARGET).lib
 
-# Core sources only (no tests, no examples)
+# Core sources only (exclude tests/examples)
 SRC_CORE = \
-  src/pg_query.c \
-  src/pg_query_error.c \
-  src/pg_query_fingerprint.c \
-  src/pg_query_parse.c \
-  src/pg_query_deparse.c \
-  src/postgres/parser/analyze.c \
-  src/postgres/parser/gram.c \
-  src/postgres/parser/scan.c \
-  vendor/protobuf-c/protobuf-c.c \
-  vendor/xxhash/xxhash.c \
-  protobuf/pg_query.pb-c.c
+  src\pg_query.c \
+  src\pg_query_error.c \
+  src\pg_query_fingerprint.c \
+  src\pg_query_parse.c \
+  src\pg_query_deparse.c \
+  src\postgres\parser\analyze.c \
+  src\postgres\parser\gram.c \
+  src\postgres\parser\scan.c \
+  vendor\protobuf-c\protobuf-c.c \
+  vendor\xxhash\xxhash.c \
+  protobuf\pg_query.pb-c.c
 
-# Include dirs (Windows-safe)
-CFLAGS = /I. /Ivendor /Isrc/postgres/include /Isrc/include /Isrc/postgres/include/port/win32 /Isrc/postgres/include/port/win32_msvc /MD /O2
+CFLAGS = /Iinclude /Isrc /Ivendor /Iprotobuf /MD /O2
 LDFLAGS = /LD
 
-# Export definitions for public API (adjust list to your needs)
-# Create pg_query.def in repo root with these lines:
+# Export definitions for public API
+# Create pg_query.def in repo root with:
 #   LIBRARY pg_query
 #   EXPORTS
 #     pg_query_init
@@ -171,9 +170,9 @@ LDFLAGS = /LD
 #     pg_query_free_fingerprint_result
 #     pg_query_free_deparse_result
 #     pg_query_cleanup
-# (Add any additional public functions you rely on)
 
 build_shared: $(DLL)
 
 $(DLL): $(SRC_CORE)
-    cl /LD /Fe$(DLL) $(SRC_CORE) /Iinclude /Isrc /Ivendor /Iprotobuf
+	cl $(CFLAGS) $(LDFLAGS) /Fe$(DLL) $(SRC_CORE) /link /DEF:pg_query.def /IMPLIB:$(IMPLIB)
+	@if exist $(DLL) echo Built $(DLL)
