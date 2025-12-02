@@ -143,13 +143,21 @@ IMPLIB = $(TARGET).lib
 # Core sources only (exclude tests/examples)
 SRC_CORE = \
   src\pg_query.c \
-  src\pg_query_error.c \
-  src\pg_query_fingerprint.c \
-  src\pg_query_parse.c \
   src\pg_query_deparse.c \
-  src\postgres\parser\analyze.c \
-  src\postgres\parser\gram.c \
-  src\postgres\parser\scan.c \
+  src\pg_query_fingerprint.c \
+  src\pg_query_json_plpgsql.c \
+  src\pg_query_normalize.c \
+  src\pg_query_outfuncs_json.c \
+  src\pg_query_outfuncs_protobuf.c \
+  src\pg_query_parse.c \
+  src\pg_query_parse_plpgsql.c \
+  src\pg_query_raw_tree_walker_supports.c \
+  src\pg_query_readfuncs_protobuf.c \
+  src\pg_query_scan.c \
+  src\pg_query_split.c \
+  src\pg_query_summary.c \
+  src\pg_query_summary_statement_type.c \
+  src\pg_query_summary_truncate.c \
   vendor\protobuf-c\protobuf-c.c \
   vendor\xxhash\xxhash.c \
   protobuf\pg_query.pb-c.c
