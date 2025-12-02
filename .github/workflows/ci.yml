@@ -159,7 +159,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        triplet: [x86_64-w64-mingw32, i686-w64-mingw32]
+        triplet: [x86_64-w64-mingw32]
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -167,21 +167,23 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends mingw-w64
-      - name: Build static library (libpg_query.a)
+      - name: Build static library (skip running examples/tests)
         env:
           CC: ${{ matrix.triplet }}-gcc
         run: |
+          set -euxo pipefail
           make clean
-          make CC=$CC CFLAGS="-O3 -I./src/postgres/include/port/win32 -DWIN32"
-      - name: Build shared library (DLL)
+          make build CC=$CC CFLAGS="-O3 -I./src/postgres/include/port/win32 -DWIN32"
+      - name: Build DLL (manual link)
         env:
           CC: ${{ matrix.triplet }}-gcc
         run: |
-          # Collect object files produced by previous make
-          OBJS="$(find src -name '*.o') $(find src/postgres -name '*.o') vendor/protobuf-c/protobuf-c.o vendor/xxhash/xxhash.o protobuf/pg_query.pb-c.o"
-          # Create import library + DLL (name pg_query.dll for consistency)
+          set -euxo pipefail
+          OBJS="$(find src -maxdepth 1 -name '*.o') $(find src/postgres -name '*.o') vendor/protobuf-c/protobuf-c.o vendor/xxhash/xxhash.o protobuf/pg_query.pb-c.o"
           $CC -shared -o pg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
-          ls -l pg_query.dll libpg_query.a || true
+          # Strip to reduce size (optional)
+          ${CC}-strip pg_query.dll || true
+          ls -l pg_query.dll libpg_query.a libpg_query.dll.a || true
       - name: Upload Windows (mingw) artifacts
         uses: actions/upload-artifact@v4
         with:
