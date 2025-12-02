@@ -162,7 +162,7 @@ SRC_CORE = \
   vendor\xxhash\xxhash.c \
   protobuf\pg_query.pb-c.c
 
-CFLAGS = /I. /Isrc /Ivendor /Ivendor\protobuf-c /Ivendor\xxhash /Iprotobuf /MD /O2
+CFLAGS = /I. /Iinclude /Isrc /Isrc\postgres\include /Ivendor /Ivendor\protobuf-c /Ivendor\xxhash /Iprotobuf /MD /O2
 LDFLAGS = /LD
 
 # Export definitions for public API
