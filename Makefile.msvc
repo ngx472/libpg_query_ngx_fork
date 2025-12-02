@@ -24,17 +24,6 @@ all: examples test build
 
 build: $(ARLIB)
 
-build_shared:
-	@echo Compiling library source files for DLL...
-	$(CC) $(CFLAGS) /c $(SRC_FILES)
-	@echo Creating library from library object files only...
-	lib /OUT:pg_query_dll.lib pg_query.obj pg_query_deparse.obj pg_query_fingerprint.obj pg_query_json_plpgsql.obj pg_query_normalize.obj pg_query_outfuncs_json.obj pg_query_outfuncs_protobuf.obj pg_query_parse.obj pg_query_parse_plpgsql.obj pg_query_raw_tree_walker_supports.obj pg_query_readfuncs_protobuf.obj pg_query_scan.obj pg_query_split.obj pg_query_summary.obj pg_query_summary_statement_type.obj pg_query_summary_truncate.obj postgres_deparse.obj src_*.obj
-	@echo Linking DLL...
-	link /DLL /OUT:$(SOLIB) pg_query_dll.lib kernel32.lib /SUBSYSTEM:WINDOWS /MACHINE:$(MACHINE)
-	@echo Cleaning up...
-	$(RM) pg_query_dll.lib
-	@echo DLL build complete: $(SOLIB)
-
 clean:
 	$(RM) *.obj
 	$(RM) src\*.obj
@@ -144,3 +133,48 @@ test/summary: test/framework/main.c test/summary.c test/summary_tests.c test/sum
 
 test/summary_truncate: test/framework/main.c test/summary_truncate.c $(ARLIB)
 	$(CC) $(CFLAGS) -o $@ test/framework/main.c test/summary_truncate.c $(ARLIB)
+
+# ---- Shared library build (MSVC) ----
+
+TARGET = pg_query
+DLL = $(TARGET).dll
+IMPLIB = $(TARGET).lib
+
+# Core sources only (no tests, no examples)
+SRC_CORE = \
+  src/pg_query.c \
+  src/pg_query_err.c \
+  src/pg_query_fingerprint.c \
+  src/pg_query_parse.c \
+  src/pg_query_deparse.c \
+  src/postgres/parser/analyze.c \
+  src/postgres/parser/gram.c \
+  src/postgres/parser/scan.c \
+  vendor/protobuf-c/protobuf-c.c \
+  vendor/xxhash/xxhash.c \
+  protobuf/pg_query.pb-c.c
+
+# Include dirs (Windows-safe)
+CFLAGS = /I. /Ivendor /Isrc/postgres/include /Isrc/include /Isrc/postgres/include/port/win32 /Isrc/postgres/include/port/win32_msvc /MD /O2
+LDFLAGS = /LD
+
+# Export definitions for public API (adjust list to your needs)
+# Create pg_query.def in repo root with these lines:
+#   LIBRARY pg_query
+#   EXPORTS
+#     pg_query_init
+#     pg_query_parse
+#     pg_query_parse_plpgsql
+#     pg_query_fingerprint
+#     pg_query_deparse
+#     pg_query_free_parse_result
+#     pg_query_free_fingerprint_result
+#     pg_query_free_deparse_result
+#     pg_query_cleanup
+# (Add any additional public functions you rely on)
+
+build_shared: $(DLL)
+
+$(DLL): $(SRC_CORE)
+	cl $(CFLAGS) $(LDFLAGS) /Fe$(DLL) $(SRC_CORE) /link /DEF:pg_query.def /IMPLIB:$(IMPLIB)
+	@if exist $(DLL) echo Built $(DLL)
