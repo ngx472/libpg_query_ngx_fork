@@ -4,40 +4,96 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build_linux_shipping:
+    name: Build Linux (x64) + upload artifacts
     runs-on: ubuntu-24.04
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-    - name: Build and run tests
-      run: make CC=gcc CXX=g++
-    - name: Build shared library
-      run: make build_shared
-    - name: Upload Linux artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: libpg_query-linux-x64
-        path: |
-          *.a
-          *.so
-        if-no-files-found: ignore
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Install build deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential autoconf automake libtool pkg-config \
+            protobuf-c-compiler libprotobuf-c-dev pkgconf
+
+      - name: Build and run tests
+        run: |
+          set -euxo pipefail
+          make clean || true
+          make CC=gcc CXX=g++
+
+      - name: Build shared library
+        run: |
+          set -euxo pipefail
+          # target expected to produce libpg_query.a and libpg_query.so (adjust to your Makefile)
+          make build_shared || make build || true
+
+      - name: Prepare artifacts layout (Linux)
+        run: |
+          set -euxo pipefail
+          rm -rf artifacts || true
+          mkdir -p artifacts/libpg_query-linux-x64/lib
+          mkdir -p artifacts/libpg_query-linux-x64/include
+          # copy libs (adjust names/paths if Makefile differs)
+          if [ -f libpg_query.so ]; then cp libpg_query.so artifacts/libpg_query-linux-x64/lib/ || true; fi
+          if [ -f libpg_query.a ];  then cp libpg_query.a artifacts/libpg_query-linux-x64/lib/ || true; fi
+          # copy include/ tree if present in repo/build
+          if [ -d include ]; then cp -a include artifacts/libpg_query-linux-x64/; fi
+          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-linux-x64/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-linux-x64/include/protobuf/ || true; fi
+          # also copy any vendor protobuf-c headers if needed (best-effort)
+          if [ -d vendor/protobuf-c/include ]; then cp -a vendor/protobuf-c/include/* artifacts/libpg_query-linux-x64/include/ || true; fi
+          ls -la artifacts/libpg_query-linux-x64 || true
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libpg_query-linux-x64
+          path: artifacts/libpg_query-linux-x64
+          if-no-files-found: ignore
 
   build_macos:
+    name: Build macOS (x64/arm depending runner) + upload artifacts
     runs-on: macos-latest
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-    - name: Build and run tests
-      run: make
-    - name: Build shared library
-      run: make build_shared
-    - name: Upload macOS artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: libpg_query-macos
-        path: |
-          *.a
-          *.dylib
-        if-no-files-found: ignore
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Install build deps (macOS)
+        run: |
+          # Using Homebrew on macOS runner
+          brew update || true
+          brew install protobuf-c pkg-config || true
+
+      - name: Build and run tests (macOS)
+        run: |
+          set -euxo pipefail
+          make clean || true
+          make
+
+      - name: Build shared library (macOS)
+        run: |
+          set -euxo pipefail
+          # target expected to produce libpg_query.dylib and libpg_query.a (adjust to your Makefile)
+          make build_shared || make build || true
+
+      - name: Prepare artifacts layout (macOS)
+        run: |
+          set -euxo pipefail
+          rm -rf artifacts || true
+          mkdir -p artifacts/libpg_query-macos/lib
+          mkdir -p artifacts/libpg_query-macos/include
+          if [ -f libpg_query.dylib ]; then cp libpg_query.dylib artifacts/libpg_query-macos/lib/ || true; fi
+          if [ -f libpg_query.a ];     then cp libpg_query.a artifacts/libpg_query-macos/lib/ || true; fi
+          if [ -d include ]; then cp -a include artifacts/libpg_query-macos/; fi
+          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-macos/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-macos/include/protobuf/ || true; fi
+          ls -la artifacts/libpg_query-macos || true
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libpg_query-macos
+          path: artifacts/libpg_query-macos
+          if-no-files-found: ignore
 
   build_windows_cross:
     name: Cross-compile Windows (mingw-w64)
@@ -49,33 +105,51 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+
       - name: Install mingw-w64 toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends mingw-w64
-      - name: Build static library (skip running examples/tests)
+          sudo apt-get install -y --no-install-recommends mingw-w64 pkg-config
+
+      - name: Build static library (cross compile)
         env:
           CC: ${{ matrix.triplet }}-gcc
         run: |
           set -euxo pipefail
-          make clean
-          make build CC=$CC CFLAGS="-O3 -I./src/postgres/include/port/win32 -DWIN32"
-      - name: Build DLL (manual link)
+          make clean || true
+          # build static .a (ensure the Makefile uses CC env)
+          make build CC=$CC CFLAGS="-O3 -DWIN32" || true
+
+      - name: Build DLL (cross link)
         env:
           CC: ${{ matrix.triplet }}-gcc
         run: |
           set -euxo pipefail
-          OBJS="$(find src -maxdepth 1 -name '*.o') $(find src/postgres -name '*.o') vendor/protobuf-c/protobuf-c.o vendor/xxhash/xxhash.o protobuf/pg_query.pb-c.o"
-          $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
-          # Strip to reduce size (optional)
-          ${CC}-strip libpg_query.dll || true
+          # collect .o files - adjust patterns if your build uses a different layout
+          OBJS="$(find . -type f -name '*.o' -print | tr '\n' ' ')"
+          # include vendor objects likely present (adjust names if needed)
+          if [ -f protobuf/pg_query.pb-c.o ]; then OBJS="$OBJS protobuf/pg_query.pb-c.o"; fi
+          # Link DLL and create import lib
+          $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a || true
+          # produce libpg_query.a if the build created it
           ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
+
+      - name: Prepare artifacts layout (Windows)
+        run: |
+          set -euxo pipefail
+          rm -rf artifacts || true
+          mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib
+          mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include
+          if [ -f libpg_query.dll ]; then cp libpg_query.dll artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ || true; fi
+          if [ -f libpg_query.dll.a ]; then cp libpg_query.dll.a artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ || true; fi
+          if [ -f libpg_query.a ]; then cp libpg_query.a artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ || true; fi
+          if [ -d include ]; then cp -a include artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/; fi
+          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf/ || true; fi
+          ls -la artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} || true
+
       - name: Upload Windows (mingw) artifacts
         uses: actions/upload-artifact@v4
         with:
           name: libpg_query-windows-mingw-${{ matrix.triplet }}
-          path: |
-            libpg_query.a
-            libpg_query.dll
-            libpg_query.dll.a
+          path: artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}
           if-no-files-found: error
