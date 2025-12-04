@@ -25,8 +25,8 @@ jobs:
       - name: Build shared library
         run: |
           set -euxo pipefail
-          # target expected to produce libpg_query.a and libpg_query.so (adjust to your Makefile)
-          make build_shared || make build || true
+          # explicitly build the shared target so we get libpg_query.so
+          make build_shared CC=gcc CXX=g++ || (make build CC=gcc CXX=g++ && true)
 
       - name: Prepare artifacts layout (Linux)
         run: |
@@ -45,6 +45,9 @@ jobs:
           if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-linux-x64/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-linux-x64/include/protobuf/ || true; fi
           # also copy any vendor protobuf-c headers if needed (best-effort)
           if [ -d vendor/protobuf-c/include ]; then cp -a vendor/protobuf-c/include/* artifacts/libpg_query-linux-x64/include/ || true; fi
+          # ensure root headers required by JNI consumers are included
+          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-linux-x64/include/ || true; fi
+          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-linux-x64/include/ || true; fi
           ls -la artifacts/libpg_query-linux-x64 || true
 
       - name: Upload Linux artifacts
@@ -76,8 +79,8 @@ jobs:
       - name: Build shared library (macOS)
         run: |
           set -euxo pipefail
-          # target expected to produce libpg_query.dylib and libpg_query.a (adjust to your Makefile)
-          make build_shared || make build || true
+          # explicitly build the shared target so we get libpg_query.dylib
+          make build_shared || (make build && true)
 
       - name: Prepare artifacts layout (macOS)
         run: |
@@ -92,6 +95,9 @@ jobs:
           if [ -d src/include ]; then mkdir -p artifacts/libpg_query-macos/include && cp -a src/include/* artifacts/libpg_query-macos/include/ || true; fi
           if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-macos/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-macos/include/postgres/ || true; fi
           if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-macos/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-macos/include/protobuf/ || true; fi
+          # ensure root headers required by JNI consumers are included
+          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-macos/include/ || true; fi
+          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-macos/include/ || true; fi
           ls -la artifacts/libpg_query-macos || true
 
       - name: Upload macOS artifacts
@@ -154,6 +160,9 @@ jobs:
           if [ -d src/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include && cp -a src/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
           if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres/ || true; fi
           if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf/ || true; fi
+          # ensure root headers required by JNI consumers are included
+          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
+          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
           ls -la artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} || true
 
       - name: Upload Windows (mingw) artifacts
