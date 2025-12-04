@@ -2,9 +2,7 @@ name: CI
 
 on: [push, pull_request, workflow_dispatch]
 
-
 jobs:
-  # Simplified Linux build for shipping (single configuration)
   build_linux_shipping:
     runs-on: ubuntu-24.04
     steps:
@@ -23,88 +21,6 @@ jobs:
           *.so
         if-no-files-found: ignore
 
-  # Full test matrix (commented out for shipping, uncomment for comprehensive testing)
-  # build:
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [ubuntu-24.04]
-  #       compiler: [clang, gcc]
-  #       protobuf_lib: [protobuf-c, protobuf-cpp]
-  #       valgrind: [valgrind,no-valgrind]
-  #       exclude:
-  #         # this combination hits linking errors: see https://github.com/pganalyze/libpg_query/pull/289
-  #         - compiler: clang
-  #           protobuf_lib: protobuf-cpp
-  #           valgrind: valgrind
-  #   steps:
-  #   - name: Check out code
-  #     uses: actions/checkout@v4
-  #   - name: Cache protobuf library
-  #     if: matrix.protobuf_lib == 'protobuf-cpp'
-  #     id: cache-protobuf
-  #     uses: actions/cache@v4
-  #     with:
-  #       path: protobuf-25.1
-  #       key: ${{ runner.os }}-${{ matrix.compiler }}-protobuf-25.1
-  #   - name: Build protobuf library
-  #     if: matrix.protobuf_lib == 'protobuf-cpp' && steps.cache-protobuf.outputs.cache-hit != 'true'
-  #     run: |
-  #       git clone --depth 1 --branch v25.1 https://github.com/protocolbuffers/protobuf.git protobuf-25.1
-  #       cd protobuf-25.1
-  #       git submodule update --init --recursive
-  #       cmake .
-  #       cmake --build . --parallel 10
-  #   - name: Install protobuf library
-  #     if: matrix.protobuf_lib == 'protobuf-cpp'
-  #     run: |
-  #       cd protobuf-25.1
-  #       sudo make install
-  #       sudo ldconfig
-  #   - name: Install Valgrind
-  #     if: matrix.valgrind == 'valgrind'
-  #     run: sudo apt update && sudo apt install -y valgrind
-  #   - name: Determine make flags
-  #     id: make_flags
-  #     run: |
-  #       if [ "$PROTOBUF_LIB" = protobuf-cpp ]
-  #       then
-  #         echo "::set-output name=proto_flags::USE_PROTOBUF_CPP=1"
-  #       else
-  #         echo "::set-output name=proto_flags::"
-  #       fi
-  #       if [ "$COMPILER" = clang ]
-  #       then
-  #         echo "::set-output name=compiler_flags::CC=clang CXX=clang"
-  #       elif [ "$COMPILER" = gcc ]
-  #       then
-  #         echo "::set-output name=compiler_flags::CC=gcc CXX=g++"
-  #       else
-  #         echo "::set-output name=compiler_flags::"
-  #       fi
-  #       if [ "$VALGRIND" = valgrind ]
-  #       then
-  #         echo "::set-output name=debug_flags::VALGRIND=1 DEBUG=1"
-  #       else
-  #         echo "::set-output name=debug_flags::"
-  #       fi
-  #     env:
-  #       PROTOBUF_LIB: ${{ matrix.protobuf_lib }}
-  #       COMPILER: ${{ matrix.compiler }}
-  #       VALGRIND: ${{ matrix.valgrind }}
-  #   - name: Build and run tests
-  #     run: make $FLAGS
-  #     env:
-  #       FLAGS: ${{ format('{0} {1} {2}', steps.make_flags.outputs.proto_flags, steps.make_flags.outputs.compiler_flags, steps.make_flags.outputs.debug_flags) }}
-  #   - name: Upload Linux artifacts
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: libpg_query-linux-${{ matrix.compiler }}-${{ matrix.protobuf_lib }}-${{ matrix.valgrind }}
-  #       path: |
-  #         *.a
-  #         *.so
-  #       if-no-files-found: ignore
   build_macos:
     runs-on: macos-latest
     steps:
@@ -122,37 +38,7 @@ jobs:
           *.a
           *.dylib
         if-no-files-found: ignore
-  # Windows MSYS2 builds (commented out - use MSVC builds for shipping)
-  # build_windows_msys2:
-  #   runs-on: windows-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       sys: [mingw64, mingw32, ucrt64, clang64]
-  #   steps:
-  #   - name: Set up MSYS2 and compiler
-  #     uses: msys2/setup-msys2@v2
-  #     with:
-  #       msystem: ${{matrix.sys}}
-  #       pacboy: >-
-  #         toolchain:p
-  #       install: >-
-  #         make
-  #         diffutils
-  #   - name: Check out code
-  #     uses: actions/checkout@v4
-  #   - name: Build and run tests
-  #     shell: msys2 {0}
-  #     run: |
-  #       make
-  #   - name: Upload Windows MSYS2 artifacts
-  #     uses: actions/upload-artifact@v4
-  #     with:
-  #       name: libpg_query-windows-msys2-${{ matrix.sys }}
-  #       path: |
-  #         *.a
-  #         *.dll
-  #       if-no-files-found: ignore
+
   build_windows_cross:
     name: Cross-compile Windows (mingw-w64)
     runs-on: ubuntu-24.04
@@ -180,16 +66,16 @@ jobs:
         run: |
           set -euxo pipefail
           OBJS="$(find src -maxdepth 1 -name '*.o') $(find src/postgres -name '*.o') vendor/protobuf-c/protobuf-c.o vendor/xxhash/xxhash.o protobuf/pg_query.pb-c.o"
-          $CC -shared -o pg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
+          $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
           # Strip to reduce size (optional)
-          ${CC}-strip pg_query.dll || true
-          ls -l pg_query.dll libpg_query.a libpg_query.dll.a || true
+          ${CC}-strip libpg_query.dll || true
+          ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
       - name: Upload Windows (mingw) artifacts
         uses: actions/upload-artifact@v4
         with:
           name: libpg_query-windows-mingw-${{ matrix.triplet }}
           path: |
             libpg_query.a
-            pg_query.dll
+            libpg_query.dll
             libpg_query.dll.a
           if-no-files-found: error

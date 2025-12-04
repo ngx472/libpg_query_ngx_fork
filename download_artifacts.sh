@@ -56,11 +56,11 @@ fi
 
 WORKFLOW_RUN_ID="${1}"
 OUTPUT_DIR="${2:-.}/artifacts"
-ARTIFACTS=(
+# Desired artifact names (will filter by availability)
+DESIRED_ARTIFACTS=(
   "libpg_query-linux-x64"
   "libpg_query-macos"
-  "libpg_query-windows-msvc-x64"
-  "libpg_query-windows-msvc-x86"
+  "libpg_query-windows-mingw-x86_64-w64-mingw32"
 )
 
 # Colors for output
@@ -138,15 +138,59 @@ print_info "Workflow run ID: $WORKFLOW_RUN_ID"
 mkdir -p "$OUTPUT_DIR"
 print_info "Output directory: $OUTPUT_DIR"
 
-# Download each artifact
+# Discover available artifacts for this run via GitHub API
+print_info "Fetching available artifacts for the run..."
+# Build a list of available artifact names without relying on mapfile/jq locally
+AVAILABLE_NAMES=()
+while IFS= read -r name; do
+  [ -n "$name" ] && AVAILABLE_NAMES+=("$name")
+done < <(gh api \
+  repos/$REPO_OWNER/$REPO_NAME/actions/runs/$WORKFLOW_RUN_ID/artifacts \
+  --jq '.artifacts[].name' 2>/dev/null || echo "")
+
+if [ ${#AVAILABLE_NAMES[@]} -eq 0 ]; then
+  print_warning "No artifacts listed via API; will attempt generic download."
+fi
+
+# Filter desired artifacts by availability
+ARTIFACTS_TO_DOWNLOAD=()
+for desired in "${DESIRED_ARTIFACTS[@]}"; do
+  for avail in "${AVAILABLE_NAMES[@]}"; do
+    if [ "$desired" = "$avail" ]; then
+      ARTIFACTS_TO_DOWNLOAD+=("$desired")
+      break
+    fi
+  done
+done
+
+# If none matched, try to download all available artifacts
+if [ ${#ARTIFACTS_TO_DOWNLOAD[@]} -eq 0 ]; then
+  print_warning "Desired artifacts not found; downloading all available artifacts for this run."
+  ARTIFACTS_TO_DOWNLOAD=("${AVAILABLE_NAMES[@]}")
+fi
+
+if [ ${#ARTIFACTS_TO_DOWNLOAD[@]} -eq 0 ]; then
+  print_error "No artifacts to download."
+  exit 1
+fi
+
+# Download each artifact found
 failed_count=0
-for artifact in "${ARTIFACTS[@]}"; do
+for artifact in "${ARTIFACTS_TO_DOWNLOAD[@]}"; do
   print_info "Downloading: $artifact"
+
+  # Ensure a clean target directory to avoid conflicts with pre-existing files
+  target_dir="$OUTPUT_DIR/$artifact"
+  if [ -d "$target_dir" ]; then
+    print_warning "Target directory exists, cleaning: $target_dir"
+    rm -rf "$target_dir"
+  fi
+  mkdir -p "$target_dir"
 
   if gh run download "$WORKFLOW_RUN_ID" \
     --repo "$REPO_OWNER/$REPO_NAME" \
     --name "$artifact" \
-    --dir "$OUTPUT_DIR/$artifact" 2>/dev/null; then
+    --dir "$target_dir" 2>/dev/null; then
     print_success "Downloaded: $artifact"
   else
     print_error "Failed to download: $artifact"
@@ -159,12 +203,11 @@ echo ""
 print_info "Download complete!"
 
 if [ $failed_count -eq 0 ]; then
-  print_success "All 4 artifacts downloaded successfully!"
+  print_success "Artifacts downloaded successfully!"
   echo ""
   echo "Contents:"
-  find "$OUTPUT_DIR" -type f -name "*.a" -o -name "*.so" -o -name "*.dylib" -o -name "*.dll" | sed "s|^|  |"
+  find "$OUTPUT_DIR" -type f \( -name "*.a" -o -name "*.so" -o -name "*.dylib" -o -name "*.dll" \) | sed "s|^|  |"
 else
   print_warning "$failed_count artifacts failed to download"
   exit 1
 fi
-
