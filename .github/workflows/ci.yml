@@ -3,7 +3,7 @@ name: CI
 on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  build_linux_shipping:
+  build_linux:
     name: Build Linux (x64) + upload artifacts
     runs-on: ubuntu-24.04
     steps:
