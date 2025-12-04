@@ -40,8 +40,8 @@ jobs:
           # copy include/ tree if present in repo/build
           if [ -d include ]; then cp -a include artifacts/libpg_query-linux-x64/; fi
           # also copy headers that live under src/include and src/postgres/include
-          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-linux-x64 && cp -a src/include artifacts/libpg_query-linux-x64/ || true; fi
-          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-linux-x64 && cp -a src/postgres/include artifacts/libpg_query-linux-x64/include-postgres || true; fi
+          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-linux-x64/include && cp -a src/include/* artifacts/libpg_query-linux-x64/include/ || true; fi
+          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-linux-x64/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-linux-x64/include/postgres/ || true; fi
           if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-linux-x64/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-linux-x64/include/protobuf/ || true; fi
           # also copy any vendor protobuf-c headers if needed (best-effort)
           if [ -d vendor/protobuf-c/include ]; then cp -a vendor/protobuf-c/include/* artifacts/libpg_query-linux-x64/include/ || true; fi
@@ -89,8 +89,8 @@ jobs:
           if [ -f libpg_query.a ];     then cp libpg_query.a artifacts/libpg_query-macos/lib/ || true; fi
           if [ -d include ]; then cp -a include artifacts/libpg_query-macos/; fi
           # copy additional header locations
-          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-macos && cp -a src/include artifacts/libpg_query-macos/ || true; fi
-          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-macos && cp -a src/postgres/include artifacts/libpg_query-macos/include-postgres || true; fi
+          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-macos/include && cp -a src/include/* artifacts/libpg_query-macos/include/ || true; fi
+          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-macos/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-macos/include/postgres/ || true; fi
           if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-macos/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-macos/include/protobuf/ || true; fi
           ls -la artifacts/libpg_query-macos || true
 
@@ -151,8 +151,8 @@ jobs:
           if [ -f libpg_query.a ]; then cp libpg_query.a artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ || true; fi
           if [ -d include ]; then cp -a include artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/; fi
           # copy additional header locations
-          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} && cp -a src/include artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/ || true; fi
-          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} && cp -a src/postgres/include artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include-postgres || true; fi
+          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include && cp -a src/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
+          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres/ || true; fi
           if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf/ || true; fi
           ls -la artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} || true
 
