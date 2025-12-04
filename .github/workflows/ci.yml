@@ -14,7 +14,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential autoconf automake libtool pkg-config \
-            protobuf-c-compiler libprotobuf-c-dev pkgconf
+            protobuf-compiler protobuf-c-compiler libprotobuf-c-dev pkgconf
 
       - name: Build and run tests
         run: |
