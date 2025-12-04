@@ -48,6 +48,9 @@ jobs:
           # ensure root headers required by JNI consumers are included
           if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-linux-x64/include/ || true; fi
           if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-linux-x64/include/ || true; fi
+          # also include the vendor protobuf-c single header and source as requested
+          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-linux-x64/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-linux-x64/include/vendor/protobuf-c/ || true; fi
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-linux-x64/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-linux-x64/include/vendor/protobuf-c/ || true; fi
           ls -la artifacts/libpg_query-linux-x64 || true
 
       - name: Upload Linux artifacts
@@ -98,6 +101,9 @@ jobs:
           # ensure root headers required by JNI consumers are included
           if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-macos/include/ || true; fi
           if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-macos/include/ || true; fi
+          # also include the vendor protobuf-c single header and source as requested
+          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-macos/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-macos/include/vendor/protobuf-c/ || true; fi
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-macos/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-macos/include/vendor/protobuf-c/ || true; fi
           ls -la artifacts/libpg_query-macos || true
 
       - name: Upload macOS artifacts
@@ -163,6 +169,9 @@ jobs:
           # ensure root headers required by JNI consumers are included
           if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
           if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
+          # also include the vendor protobuf-c single header and source as requested
+          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c/ || true; fi
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c/ || true; fi
           ls -la artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} || true
 
       - name: Upload Windows (mingw) artifacts
