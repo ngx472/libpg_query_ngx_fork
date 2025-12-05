@@ -25,8 +25,14 @@ jobs:
       - name: Build shared library
         run: |
           set -euxo pipefail
-          # explicitly build the shared target so we get libpg_query.so
-          make build_shared CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' || (make build CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' && true)
+          # explicitly build the shared target so we get libpg_query.so; try build as fallback but fail if both fail
+          if ! make build_shared CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'; then
+            echo "build_shared failed, trying build..."
+            if ! make build CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'; then
+              echo "ERROR: both build_shared and build failed" >&2
+              exit 1
+            fi
+          fi
 
       - name: Prepare artifacts layout (Linux)
         run: |
@@ -35,22 +41,22 @@ jobs:
           mkdir -p artifacts/libpg_query-linux-x64/lib
           mkdir -p artifacts/libpg_query-linux-x64/include
           # copy libs (adjust names/paths if Makefile differs)
-          if [ -f libpg_query.so ]; then cp libpg_query.so artifacts/libpg_query-linux-x64/lib/ || true; fi
-          if [ -f libpg_query.a ];  then cp libpg_query.a artifacts/libpg_query-linux-x64/lib/ || true; fi
+          if [ -f libpg_query.so ]; then cp libpg_query.so artifacts/libpg_query-linux-x64/lib/; fi
+          if [ -f libpg_query.a ];  then cp libpg_query.a artifacts/libpg_query-linux-x64/lib/; fi
           # copy include/ tree if present in repo/build
           if [ -d include ]; then cp -a include artifacts/libpg_query-linux-x64/; fi
           # also copy headers that live under src/include and src/postgres/include
-          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-linux-x64/include && cp -a src/include/* artifacts/libpg_query-linux-x64/include/ || true; fi
-          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-linux-x64/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-linux-x64/include/postgres/ || true; fi
-          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-linux-x64/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-linux-x64/include/protobuf/ || true; fi
+          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-linux-x64/include && cp -a src/include/* artifacts/libpg_query-linux-x64/include/; fi
+          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-linux-x64/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-linux-x64/include/postgres/; fi
+          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-linux-x64/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-linux-x64/include/protobuf/; fi
           # also copy any vendor protobuf-c headers if needed (best-effort)
-          if [ -d vendor/protobuf-c/include ]; then cp -a vendor/protobuf-c/include/* artifacts/libpg_query-linux-x64/include/ || true; fi
+          if [ -d vendor/protobuf-c/include ]; then cp -a vendor/protobuf-c/include/* artifacts/libpg_query-linux-x64/include/; fi
           # ensure root headers required by JNI consumers are included
-          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-linux-x64/include/ || true; fi
-          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-linux-x64/include/ || true; fi
+          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-linux-x64/include/; fi
+          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-linux-x64/include/; fi
           # also include the vendor protobuf-c single header and source as requested
-          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-linux-x64/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-linux-x64/include/vendor/protobuf-c/ || true; fi
-          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-linux-x64/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-linux-x64/include/vendor/protobuf-c/ || true; fi
+          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-linux-x64/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-linux-x64/include/vendor/protobuf-c/; fi
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-linux-x64/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-linux-x64/include/vendor/protobuf-c/; fi
           ls -la artifacts/libpg_query-linux-x64 || true
 
       - name: Upload Linux artifacts
@@ -83,8 +89,14 @@ jobs:
       - name: Build shared library (macOS)
         run: |
           set -euxo pipefail
-          # explicitly build the shared target so we get libpg_query.dylib
-          make build_shared CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' || (make build CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' && true)
+          # explicitly build the shared target so we get libpg_query.dylib; try build as fallback but fail if both fail
+          if ! make build_shared CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'; then
+            echo "build_shared failed on macOS runner, trying build..."
+            if ! make build CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'; then
+              echo "ERROR: both build_shared and build failed on macOS runner" >&2
+              exit 1
+            fi
+          fi
 
       - name: Prepare artifacts layout (macOS)
         run: |
@@ -93,18 +105,18 @@ jobs:
           mkdir -p artifacts/libpg_query-macos/lib
           mkdir -p artifacts/libpg_query-macos/include
           if [ -f libpg_query.dylib ]; then cp libpg_query.dylib artifacts/libpg_query-macos/lib/ || true; fi
-          if [ -f libpg_query.a ];     then cp libpg_query.a artifacts/libpg_query-macos/lib/ || true; fi
+          if [ -f libpg_query.a ];     then cp libpg_query.a artifacts/libpg_query-macos/lib/; fi
           if [ -d include ]; then cp -a include artifacts/libpg_query-macos/; fi
           # copy additional header locations
-          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-macos/include && cp -a src/include/* artifacts/libpg_query-macos/include/ || true; fi
-          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-macos/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-macos/include/postgres/ || true; fi
-          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-macos/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-macos/include/protobuf/ || true; fi
+          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-macos/include && cp -a src/include/* artifacts/libpg_query-macos/include/; fi
+          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-macos/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-macos/include/postgres/; fi
+          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-macos/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-macos/include/protobuf/; fi
           # ensure root headers required by JNI consumers are included
-          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-macos/include/ || true; fi
-          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-macos/include/ || true; fi
+          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-macos/include/; fi
+          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-macos/include/; fi
           # also include the vendor protobuf-c single header and source as requested
-          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-macos/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-macos/include/vendor/protobuf-c/ || true; fi
-          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-macos/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-macos/include/vendor/protobuf-c/ || true; fi
+          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-macos/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-macos/include/vendor/protobuf-c/; fi
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-macos/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-macos/include/vendor/protobuf-c/; fi
           ls -la artifacts/libpg_query-macos || true
 
       - name: Upload macOS artifacts
@@ -246,29 +258,29 @@ jobs:
           FOUND_STATIC="$(find . -type f -name 'libpg_query.a' -print -quit || true)"
           if [ -n "$FOUND_STATIC" ]; then
             echo "Found static archive: $FOUND_STATIC"
-            cp "$FOUND_STATIC" artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ || true
+            cp "$FOUND_STATIC" artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/
           else
             echo "No libpg_query.a found; copying available libpg_query*.a as fallback (may be import lib)"
-            find . -type f -name 'libpg_query*.a' -exec cp {} artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ \; || true
+            find . -type f -name 'libpg_query*.a' -exec cp {} artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ \;
             # If only an import lib (libpg_query.dll.a) exists, copy it as libpg_query.a so consumers have an .a filename
             IMP_LIB="$(find . -type f -name 'libpg_query.dll.a' -print -quit || true)"
             if [ -n "$IMP_LIB" ] && [ ! -f artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/libpg_query.a ]; then
               echo "No true static lib; using import lib as libpg_query.a fallback: $IMP_LIB"
-              cp "$IMP_LIB" artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/libpg_query.a || true
+              cp "$IMP_LIB" artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/libpg_query.a
             fi
           fi
-          if [ -f libpg_query.dll ]; then cp libpg_query.dll artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/ || true; fi
+          if [ -f libpg_query.dll ]; then cp libpg_query.dll artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/lib/; fi
           if [ -d include ]; then cp -a include artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/; fi
-          # copy additional header locations
-          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include && cp -a src/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
-          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres/ || true; fi
-          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf/ || true; fi
+           # copy additional header locations
+          if [ -d src/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include && cp -a src/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/; fi
+          if [ -d src/postgres/include ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres && cp -a src/postgres/include/* artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/postgres/; fi
+          if [ -d protobuf ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf && cp -a protobuf/*.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/protobuf/; fi
           # ensure root headers required by JNI consumers are included
-          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
-          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/ || true; fi
+          if [ -f pg_query.h ]; then cp pg_query.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/; fi
+          if [ -f postgres_deparse.h ]; then cp postgres_deparse.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/; fi
           # also include the vendor protobuf-c single header and source as requested
-          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c/ || true; fi
-          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c/ || true; fi
+          if [ -f vendor/protobuf-c/protobuf-c.h ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.h artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c/; fi
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then mkdir -p artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c && cp vendor/protobuf-c/protobuf-c.c artifacts/libpg_query-windows-mingw-${{ matrix.triplet }}/include/vendor/protobuf-c/; fi
           ls -la artifacts/libpg_query-windows-mingw-${{ matrix.triplet }} || true
 
       - name: "Debug: list built files (Windows)"
