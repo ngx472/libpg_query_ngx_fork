@@ -135,16 +135,18 @@ jobs:
           CC: ${{ matrix.triplet }}-gcc
           AR: ${{ matrix.triplet }}-ar
           RANLIB: ${{ matrix.triplet }}-ranlib
+          OS: Windows_NT
         run: |
           set -euxo pipefail
           make clean || true
           # build static .a (ensure the Makefile uses CC and AR env variables)
           # add -fPIC to attempt PIC objects for linking into a DLL (no-op on some mingw targets but harmless)
-          make build CC=$CC AR=$AR RANLIB=$RANLIB CFLAGS="-O3 -DWIN32 -fPIC" CXXFLAGS="-O3 -DWIN32 -fPIC" || true
+          make build CC=$CC AR=$AR RANLIB=$RANLIB CFLAGS="-O3 -DWIN32 -fPIC" CXXFLAGS="-O3 -DWIN32 -fPIC"
 
       - name: Build DLL (cross link)
         env:
           CC: ${{ matrix.triplet }}-gcc
+          OS: Windows_NT
         run: |
           set -euxo pipefail
           # collect .o files - adjust patterns if your build uses a different layout
@@ -152,7 +154,7 @@ jobs:
           # include vendor objects likely present (adjust names if needed)
           if [ -f protobuf/pg_query.pb-c.o ]; then OBJS="$OBJS protobuf/pg_query.pb-c.o"; fi
           # Link DLL and create import lib
-          $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a || true
+          $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
           # produce libpg_query.a if the build created it
           ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
 
@@ -161,17 +163,19 @@ jobs:
           CC: ${{ matrix.triplet }}-gcc
           AR: ${{ matrix.triplet }}-ar
           RANLIB: ${{ matrix.triplet }}-ranlib
+          OS: Windows_NT
         run: |
           set -euxo pipefail
           echo "Invoking make libpg_query.a with AR=$AR RANLIB=$RANLIB CC=$CC"
           make clean || true
-          make libpg_query.a AR=$AR RANLIB=$RANLIB CC=$CC CFLAGS='-O3 -DWIN32 -fPIC' || true
+          make libpg_query.a AR=$AR RANLIB=$RANLIB CC=$CC CFLAGS='-O3 -DWIN32 -fPIC'
           echo "Artifacts in repo root:"
           ls -la libpg_query.a libpg_query.dll libpg_query.dll.a || true
 
       - name: Create static library (ensure libpg_query.a)
         env:
           AR_CANDIDATE: ${{ matrix.triplet }}-ar
+          OS: Windows_NT
         run: |
           set -euxo pipefail
           # determine ar command to use
