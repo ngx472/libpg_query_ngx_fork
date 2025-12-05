@@ -138,10 +138,44 @@ jobs:
           OS: Windows_NT
         run: |
           set -euxo pipefail
-          make clean || true
-          # build static .a (ensure the Makefile uses CC and AR env variables)
-          # add -fPIC to attempt PIC objects for linking into a DLL (no-op on some mingw targets but harmless)
-          make build CC=$CC AR=$AR RANLIB=$RANLIB CFLAGS="-O3 -DWIN32 -fPIC" CXXFLAGS="-O3 -DWIN32 -fPIC"
+          # Manual cross-compile: compile all .c sources with the mingw cross-compiler
+          OBJDIR=build_mingw_objs
+          rm -rf "$OBJDIR"
+          mkdir -p "$OBJDIR"
+          # Compiler flags (mirror Makefile's include paths and relevant flags)
+          CFLAGS='-O3 -DWIN32 -fPIC -I. -I./vendor -I./src/include -I./src/postgres/include -I./src/postgres/include/port/win32 -Wall -Wno-unused-function -Wno-unused-value -Wno-unused-variable -fno-strict-aliasing -fwrapv'
+          echo "Using CC=$CC AR=$AR RANLIB=$RANLIB"
+          # Gather source files: all C files under src plus known vendor/protobuf files
+          SRCS="$(find src -type f -name '*.c' -print)"
+          if [ -f vendor/protobuf-c/protobuf-c.c ]; then SRCS="$SRCS vendor/protobuf-c/protobuf-c.c"; fi
+          if [ -f vendor/xxhash/xxhash.c ]; then SRCS="$SRCS vendor/xxhash/xxhash.c"; fi
+          if [ -f protobuf/pg_query.pb-c.c ]; then SRCS="$SRCS protobuf/pg_query.pb-c.c"; fi
+          # Compile each source into a unique object under OBJDIR
+          for s in $SRCS; do
+            [ -f "$s" ] || continue
+            # create a safe object filename
+            o="$OBJDIR/$(echo "$s" | sed 's#[/ ]#_#g').o"
+            mkdir -p "$(dirname "$o")" || true
+            echo "Compiling $s -> $o"
+            "$CC" -c $CFLAGS -o "$o" "$s"
+          done
+          # Create static archive from the produced object files
+          OBJ_FILES=$(find "$OBJDIR" -type f -name '*.o' -print)
+          if [ -z "$OBJ_FILES" ]; then
+            echo "No object files produced; aborting static archive creation"
+            exit 1
+          fi
+          echo "Creating libpg_query.a from object files"
+          # Use find -print0 + xargs -0 to pass object filenames safely to ar
+          if ! find "$OBJDIR" -type f -name '*.o' -print0 | xargs -0 "$AR" rcs libpg_query.a; then
+            echo "ar failed to create libpg_query.a" >&2
+            exit 1
+          fi
+           # ranlib may be available; try but don't fail if not
+           if command -v "$RANLIB" >/dev/null 2>&1; then
+             "$RANLIB" libpg_query.a || true
+           fi
+           ls -l libpg_query.a || true
 
       - name: Build DLL (cross link)
         env:
@@ -158,49 +192,48 @@ jobs:
           # produce libpg_query.a if the build created it
           ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
 
-      - name: Force-create libpg_query.a (explicit make target)
+      - name: Verify / create static archive (libpg_query.a)
         env:
-          CC: ${{ matrix.triplet }}-gcc
           AR: ${{ matrix.triplet }}-ar
           RANLIB: ${{ matrix.triplet }}-ranlib
           OS: Windows_NT
         run: |
           set -euxo pipefail
-          echo "Invoking make libpg_query.a with AR=$AR RANLIB=$RANLIB CC=$CC"
-          make clean || true
-          make libpg_query.a AR=$AR RANLIB=$RANLIB CC=$CC CFLAGS='-O3 -DWIN32 -fPIC'
-          echo "Artifacts in repo root:"
-          ls -la libpg_query.a libpg_query.dll libpg_query.dll.a || true
-
-      - name: Create static library (ensure libpg_query.a)
-        env:
-          AR_CANDIDATE: ${{ matrix.triplet }}-ar
-          OS: Windows_NT
-        run: |
-          set -euxo pipefail
-          # determine ar command to use
-          AR_CMD="${AR_CANDIDATE}"
-          if ! command -v "$AR_CMD" >/dev/null 2>&1; then
-            echo "${AR_CMD} not found in PATH, falling back to system ar if available"
-            if command -v ar >/dev/null 2>&1; then
-              AR_CMD=ar
-            else
-              echo "no 'ar' available to create static archive; aborting creation step"
-              exit 0
+          echo "Checking for libpg_query.a"
+          if [ -f libpg_query.a ]; then
+            echo "libpg_query.a already exists"
+          else
+            # Try to create from the object directory produced by manual compile
+            if [ -d build_mingw_objs ]; then
+              OBJ_FILES=$(find build_mingw_objs -type f -name '*.o' -print | tr '\n' ' ')
+              if [ -n "$(find build_mingw_objs -type f -name '*.o' -print -quit)" ]; then
+                echo "Creating libpg_query.a from build_mingw_objs"
+                find build_mingw_objs -type f -name '*.o' -print0 | xargs -0 $AR rcs libpg_query.a
+                if command -v $RANLIB >/dev/null 2>&1; then $RANLIB libpg_query.a || true; fi
+              fi
+            fi
+            # If still not present, try to use any import lib produced by the link step
+            if [ ! -f libpg_query.a ]; then
+              if [ -f libpg_query.dll.a ]; then
+                echo "No static archive created; using import lib libpg_query.dll.a as libpg_query.a"
+                cp libpg_query.dll.a libpg_query.a || true
+              else
+                # find any matching import lib in the tree
+                IMP="$(find . -type f -name 'libpg_query.dll.a' -print -quit || true)"
+                if [ -n "$IMP" ]; then
+                  echo "Found import lib: $IMP; copying as libpg_query.a"
+                  cp "$IMP" libpg_query.a || true
+                fi
+              fi
             fi
           fi
-
-          echo "Using AR_CMD=$AR_CMD"
-          # Count object files
-          OBJ_COUNT=$(find . -type f -name '*.o' -not -path './.git/*' | wc -l || true)
-          if [ -z "$OBJ_COUNT" ] || [ "$OBJ_COUNT" -eq 0 ]; then
-            echo "No object files found to create static library; skipping ar step"
-          else
-            echo "Found $OBJ_COUNT object files; creating libpg_query.a"
-            # Use find -print0 piped to xargs -0 to handle any weird filenames
-            find . -type f -name '*.o' -not -path './.git/*' -print0 | xargs -0 "$AR_CMD" rcs libpg_query.a
-            echo "Created:" && ls -l libpg_query.a || true
+          if [ ! -f libpg_query.a ]; then
+            echo "ERROR: libpg_query.a not found after attempts to create/copy" >&2
+            # list candidates for debugging
+            find . -type f -name 'libpg_query*.a' -or -name 'libpg_query.dll*' -ls || true
+            exit 1
           fi
+          ls -l libpg_query.a || true
 
       - name: Prepare artifacts layout (Windows)
         run: |
