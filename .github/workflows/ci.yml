@@ -145,11 +145,14 @@ jobs:
           # Compiler flags (mirror Makefile's include paths and relevant flags)
           CFLAGS='-O3 -DWIN32 -fPIC -I. -I./vendor -I./src/include -I./src/postgres/include -I./src/postgres/include/port/win32 -Wall -Wno-unused-function -Wno-unused-value -Wno-unused-variable -fno-strict-aliasing -fwrapv'
           echo "Using CC=$CC AR=$AR RANLIB=$RANLIB"
-          # Gather source files: all C files under src plus known vendor/protobuf files
-          SRCS="$(find src -type f -name '*.c' -print)"
+          # Gather source files matching the Makefile's SRC_FILES: top-level src/*.c and src/postgres/*.c
+          SRCS="$(find src -maxdepth 1 -type f -name '*.c' -print)"
+          SRCS="$SRCS $(find src/postgres -maxdepth 1 -type f -name '*.c' -print)"
+          # Add vendor sources explicitly (protobuf-c, xxhash) and pre-generated protobuf C
           if [ -f vendor/protobuf-c/protobuf-c.c ]; then SRCS="$SRCS vendor/protobuf-c/protobuf-c.c"; fi
           if [ -f vendor/xxhash/xxhash.c ]; then SRCS="$SRCS vendor/xxhash/xxhash.c"; fi
           if [ -f protobuf/pg_query.pb-c.c ]; then SRCS="$SRCS protobuf/pg_query.pb-c.c"; fi
+
           # Compile each source into a unique object under OBJDIR
           for s in $SRCS; do
             [ -f "$s" ] || continue
