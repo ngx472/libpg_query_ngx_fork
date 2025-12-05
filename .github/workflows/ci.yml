@@ -138,47 +138,21 @@ jobs:
           OS: Windows_NT
         run: |
           set -euxo pipefail
-          # Manual cross-compile: compile all .c sources with the mingw cross-compiler
-          OBJDIR=build_mingw_objs
-          rm -rf "$OBJDIR"
-          mkdir -p "$OBJDIR"
-          # Compiler flags (mirror Makefile's include paths and relevant flags)
-          CFLAGS='-O3 -DWIN32 -fPIC -I. -I./vendor -I./src/include -I./src/postgres/include -I./src/postgres/include/port/win32 -Wall -Wno-unused-function -Wno-unused-value -Wno-unused-variable -fno-strict-aliasing -fwrapv'
-          echo "Using CC=$CC AR=$AR RANLIB=$RANLIB"
-          # Gather source files matching the Makefile's SRC_FILES: top-level src/*.c and src/postgres/*.c
-          SRCS="$(find src -maxdepth 1 -type f -name '*.c' -print)"
-          SRCS="$SRCS $(find src/postgres -maxdepth 1 -type f -name '*.c' -print)"
-          # Add vendor sources explicitly (protobuf-c, xxhash) and pre-generated protobuf C
-          if [ -f vendor/protobuf-c/protobuf-c.c ]; then SRCS="$SRCS vendor/protobuf-c/protobuf-c.c"; fi
-          if [ -f vendor/xxhash/xxhash.c ]; then SRCS="$SRCS vendor/xxhash/xxhash.c"; fi
-          if [ -f protobuf/pg_query.pb-c.c ]; then SRCS="$SRCS protobuf/pg_query.pb-c.c"; fi
-
-          # Compile each source into a unique object under OBJDIR
-          for s in $SRCS; do
-            [ -f "$s" ] || continue
-            # create a safe object filename
-            o="$OBJDIR/$(echo "$s" | sed 's#[/ ]#_#g').o"
-            mkdir -p "$(dirname "$o")" || true
-            echo "Compiling $s -> $o"
-            "$CC" -c $CFLAGS -o "$o" "$s"
-          done
-          # Create static archive from the produced object files
-          OBJ_FILES=$(find "$OBJDIR" -type f -name '*.o' -print)
-          if [ -z "$OBJ_FILES" ]; then
-            echo "No object files produced; aborting static archive creation"
-            exit 1
+          # If object files already exist, pack them. Otherwise, invoke make to produce them then pack.
+          if [ -n "$(find . -type f -name '*.o' -not -path './.git/*' -print -quit)" ]; then
+            echo "Found existing object files; creating libpg_query.a from them"
+          else
+            echo "No existing .o files found; running 'make build' to produce objects"
+            make clean || true
+            make CC=${{ matrix.triplet }}-gcc AR=true RANLIB=true CFLAGS='-O3 -DWIN32 -fPIC' CXXFLAGS='-O3 -DWIN32 -fPIC' build
           fi
           echo "Creating libpg_query.a from object files"
-          # Use find -print0 + xargs -0 to pass object filenames safely to ar
-          if ! find "$OBJDIR" -type f -name '*.o' -print0 | xargs -0 "$AR" rcs libpg_query.a; then
-            echo "ar failed to create libpg_query.a" >&2
-            exit 1
+          # Use null-delimited pipeline to avoid issues with file names
+          find . -type f -name '*.o' -not -path './.git/*' -print0 | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+          if command -v ${{ matrix.triplet }}-ranlib >/dev/null 2>&1; then
+            ${{ matrix.triplet }}-ranlib libpg_query.a || true
           fi
-           # ranlib may be available; try but don't fail if not
-           if command -v "$RANLIB" >/dev/null 2>&1; then
-             "$RANLIB" libpg_query.a || true
-           fi
-           ls -l libpg_query.a || true
+          ls -l libpg_query.a || true
 
       - name: Build DLL (cross link)
         env:
