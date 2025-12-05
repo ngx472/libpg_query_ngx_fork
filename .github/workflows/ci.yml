@@ -138,17 +138,32 @@ jobs:
           OS: Windows_NT
         run: |
           set -euxo pipefail
-          # If object files already exist, pack them. Otherwise, invoke make to produce them then pack.
-          if [ -n "$(find . -type f -name '*.o' -not -path './.git/*' -print -quit)" ]; then
-            echo "Found existing object files; creating libpg_query.a from them"
-          else
-            echo "No existing .o files found; running 'make build' to produce objects"
-            make clean || true
-            make CC=${{ matrix.triplet }}-gcc AR=true RANLIB=true CFLAGS='-O3 -DWIN32 -fPIC' CXXFLAGS='-O3 -DWIN32 -fPIC' build
+          # Build objects deterministically via the Makefile so both .a and .dll use the same objects.
+          make clean || true
+          make CC=${{ matrix.triplet }}-gcc AR=true RANLIB=true CFLAGS='-O3 -DWIN32 -fPIC' CXXFLAGS='-O3 -DWIN32 -fPIC' build
+
+          # Collect only library objects (avoid test/example artifacts). Use the canonical source/vendor dirs.
+          OBJ_ROOTS=(src src/postgres vendor protobuf)
+          FOUND=false
+          for D in "${OBJ_ROOTS[@]}"; do
+            if [ -d "$D" ] && [ -n "$(find "$D" -type f -name '*.o' -print -quit)" ]; then
+              FOUND=true
+              break
+            fi
+          done
+          if [ "$FOUND" = false ] && [ -z "$(find . -type f -name '*.o' -print -quit)" ]; then
+            echo "No object files found after make; aborting" >&2
+            exit 1
           fi
-          echo "Creating libpg_query.a from object files"
+
+          echo "Creating libpg_query.a from object files under src/, vendor/ and protobuf/"
           # Use null-delimited pipeline to avoid issues with file names
-          find . -type f -name '*.o' -not -path './.git/*' -print0 | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+          find src src/postgres vendor protobuf -type f -name '*.o' -not -path './.git/*' -print0 2>/dev/null | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+          # Fallback: if above found nothing, pack any .o in repo
+          if [ ! -f libpg_query.a ] || [ ! -s libpg_query.a ]; then
+            echo "Primary object roots produced no archive; falling back to any .o files"
+            find . -type f -name '*.o' -not -path './.git/*' -print0 | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+          fi
           if command -v ${{ matrix.triplet }}-ranlib >/dev/null 2>&1; then
             ${{ matrix.triplet }}-ranlib libpg_query.a || true
           fi
@@ -160,14 +175,16 @@ jobs:
           OS: Windows_NT
         run: |
           set -euxo pipefail
-          # collect .o files - adjust patterns if your build uses a different layout
-          OBJS="$(find . -type f -name '*.o' -print | tr '\n' ' ')"
-          # include vendor objects likely present (adjust names if needed)
-          if [ -f protobuf/pg_query.pb-c.o ]; then OBJS="$OBJS protobuf/pg_query.pb-c.o"; fi
-          # Link DLL and create import lib
-          $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
-          # produce libpg_query.a if the build created it
-          ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
+          # Collect the same object files used for the static archive (prefer src/vendor/protobuf)
+          OBJS="$(find src src/postgres vendor protobuf -type f -name '*.o' -print 2>/dev/null | tr '\n' ' ')"
+          # Fallback: include any .o if the above didn't return anything
+          if [ -z "$OBJS" ]; then
+            OBJS="$(find . -type f -name '*.o' -print | tr '\n' ' ')"
+          fi
+           # Link DLL and create import lib
+           $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
+           # produce libpg_query.a if the build created it
+           ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
 
       - name: Verify / create static archive (libpg_query.a)
         env:
