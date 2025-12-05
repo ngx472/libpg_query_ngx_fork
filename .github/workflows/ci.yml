@@ -157,8 +157,15 @@ jobs:
           fi
 
           echo "Creating libpg_query.a from object files under src/, vendor/ and protobuf/"
+          # Use explicit, non-overlapping find calls to avoid duplicates (src includes src/postgres)
           # Use null-delimited pipeline to avoid issues with file names
-          find src src/postgres vendor protobuf -type f -name '*.o' -not -path './.git/*' -print0 2>/dev/null | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+          (
+            find src -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
+            find src/postgres -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
+            find vendor/protobuf-c -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
+            find vendor/xxhash -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
+            find protobuf -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
+          ) | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
           # Fallback: if above found nothing, pack any .o in repo
           if [ ! -f libpg_query.a ] || [ ! -s libpg_query.a ]; then
             echo "Primary object roots produced no archive; falling back to any .o files"
@@ -176,7 +183,7 @@ jobs:
         run: |
           set -euxo pipefail
           # Collect the same object files used for the static archive (prefer src/vendor/protobuf)
-          OBJS="$(find src src/postgres vendor protobuf -type f -name '*.o' -print 2>/dev/null | tr '\n' ' ')"
+          OBJS="$( (find src -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find src/postgres -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find vendor/protobuf-c -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find vendor/xxhash -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find protobuf -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true) | tr '\n' ' ' )"
           # Fallback: include any .o if the above didn't return anything
           if [ -z "$OBJS" ]; then
             OBJS="$(find . -type f -name '*.o' -print | tr '\n' ' ')"
