@@ -165,11 +165,11 @@ jobs:
             find vendor/protobuf-c -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
             find vendor/xxhash -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
             find protobuf -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true
-          ) | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+          ) | awk -v RS='\0' '!seen[$0]++ {printf "%s\0", $0}' | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
           # Fallback: if above found nothing, pack any .o in repo
           if [ ! -f libpg_query.a ] || [ ! -s libpg_query.a ]; then
             echo "Primary object roots produced no archive; falling back to any .o files"
-            find . -type f -name '*.o' -not -path './.git/*' -print0 | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
+            find . -type f -name '*.o' -not -path './.git/*' -print0 | awk -v RS='\0' '!seen[$0]++ {printf "%s\0", $0}' | xargs -0 ${{ matrix.triplet }}-ar rcs libpg_query.a
           fi
           if command -v ${{ matrix.triplet }}-ranlib >/dev/null 2>&1; then
             ${{ matrix.triplet }}-ranlib libpg_query.a || true
@@ -183,10 +183,10 @@ jobs:
         run: |
           set -euxo pipefail
           # Collect the same object files used for the static archive (prefer src/vendor/protobuf)
-          OBJS="$( (find src -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find src/postgres -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find vendor/protobuf-c -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find vendor/xxhash -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true; find protobuf -maxdepth 1 -type f -name '*.o' -print 2>/dev/null || true) | tr '\n' ' ' )"
+          OBJS="$( (find src -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true; find src/postgres -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true; find vendor/protobuf-c -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true; find vendor/xxhash -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true; find protobuf -maxdepth 1 -type f -name '*.o' -print0 2>/dev/null || true) | awk -v RS='\0' '!seen[$0]++ {printf "%s\n", $0}' | tr '\n' ' ' )"
           # Fallback: include any .o if the above didn't return anything
           if [ -z "$OBJS" ]; then
-            OBJS="$(find . -type f -name '*.o' -print | tr '\n' ' ')"
+            OBJS="$(find . -type f -name '*.o' -print0 | awk -v RS='\0' '!seen[$0]++ {printf "%s\n", $0}' | tr '\n' ' ')"
           fi
            # Link DLL and create import lib
            $CC -shared -o libpg_query.dll $OBJS -lws2_32 -lkernel32 -luser32 -ladvapi32 -Wl,--out-implib=libpg_query.dll.a
