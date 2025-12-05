@@ -154,6 +154,21 @@ jobs:
           # produce libpg_query.a if the build created it
           ls -l libpg_query.dll libpg_query.a libpg_query.dll.a || true
 
+      - name: Create static library (ensure libpg_query.a)
+        env:
+          AR: ${{ matrix.triplet }}-ar
+        run: |
+          set -euxo pipefail
+          # Find object files produced by the build (best-effort)
+          OBJS="$(find . -type f -name '*.o' -print | tr '\n' ' ')"
+          if [ -z "$OBJS" ]; then
+            echo "No object files found to create static library; skipping ar step"
+          else
+            echo "Creating libpg_query.a from object files"
+            $AR rcs libpg_query.a $OBJS
+            ls -l libpg_query.a || true
+          fi
+
       - name: Prepare artifacts layout (Windows)
         run: |
           set -euxo pipefail
