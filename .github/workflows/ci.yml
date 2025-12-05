@@ -20,13 +20,13 @@ jobs:
         run: |
           set -euxo pipefail
           make clean || true
-          make CC=gcc CXX=g++
+          make CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'
 
       - name: Build shared library
         run: |
           set -euxo pipefail
           # explicitly build the shared target so we get libpg_query.so
-          make build_shared CC=gcc CXX=g++ || (make build CC=gcc CXX=g++ && true)
+          make build_shared CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' || (make build CC=gcc CXX=g++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' && true)
 
       - name: Prepare artifacts layout (Linux)
         run: |
@@ -77,13 +77,14 @@ jobs:
         run: |
           set -euxo pipefail
           make clean || true
-          make
+          # pass -fPIC so object files are position independent for linking into dylibs if needed
+          make CC=clang CXX=clang++ CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'
 
       - name: Build shared library (macOS)
         run: |
           set -euxo pipefail
           # explicitly build the shared target so we get libpg_query.dylib
-          make build_shared || (make build && true)
+          make build_shared CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' || (make build CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC' && true)
 
       - name: Prepare artifacts layout (macOS)
         run: |
@@ -136,7 +137,8 @@ jobs:
           set -euxo pipefail
           make clean || true
           # build static .a (ensure the Makefile uses CC env)
-          make build CC=$CC CFLAGS="-O3 -DWIN32" || true
+          # add -fPIC to attempt PIC objects for linking into a DLL (no-op on some mingw targets but harmless)
+          make build CC=$CC CFLAGS="-O3 -DWIN32 -fPIC" CXXFLAGS="-O3 -DWIN32 -fPIC" || true
 
       - name: Build DLL (cross link)
         env:
